@@ -8,11 +8,13 @@
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
-  "app": {"windows": [
+  "app": {
+    "windows": [
       {
         "title": "bintool-tauri",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "transparent": true
       }
     ],
     "security": {
