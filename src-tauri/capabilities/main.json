@@ -15,6 +15,7 @@
     "window:allow-show",
     "window:allow-set-focus",
     "window:allow-is-focused",
+    "window:allow-create",
     "global-shortcut:allow-register"
   ]
 }
