@@ -30,4 +30,13 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    assetsDir: 'assets', // 设置静态资源目录 这个设置了之后构建前的目录和构建后的目录就保持一致了
+    rollupOptions: {
+      input: {
+        index: 'index.html',
+        novel: 'src/novel/novel.html'
+      },
+    },
+  },
 }));
