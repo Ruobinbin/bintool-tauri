@@ -2,13 +2,27 @@
 import { onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { register } from '@tauri-apps/plugin-global-shortcut';
 
 const currentWindow = Window.getCurrent();
 let inputElement = ref<HTMLInputElement>();
 const input = ref("");
 async function onEnter() {
-    console.log(await invoke("input_enter", { value: input.value }))
+    switch (input.value) {
+        case '/xs':
+            if (!WebviewWindow.getByLabel('novel')) {
+                new WebviewWindow('novel', {
+                    url: 'src/novel/novel.html'
+                })
+            } else {
+                WebviewWindow.getByLabel('novel')?.unminimize()
+                WebviewWindow.getByLabel('novel')?.setFocus()
+            }
+            break;
+        default:
+            console.log(await invoke("input_enter", { value: input.value }))
+    }
 }
 
 onMounted(async () => {
