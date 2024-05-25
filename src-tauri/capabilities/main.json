@@ -16,6 +16,8 @@
     "window:allow-set-focus",
     "window:allow-is-focused",
     "window:allow-create",
+    "window:allow-unminimize",
+    "webview:allow-create-webview-window",
     "global-shortcut:allow-register"
   ]
 }
