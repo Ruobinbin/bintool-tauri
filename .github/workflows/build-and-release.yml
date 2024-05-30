@@ -15,6 +15,3 @@ jobs:
 
       - name: 打印Node.js版本
         run: node -v
-        
-      - name: 打印Rust版本
-        run: rustc --version
