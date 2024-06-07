@@ -20,6 +20,7 @@
     "window:allow-unminimize",
     "webview:allow-create-webview-window",
     "global-shortcut:allow-register",
-    "updater:allow-check"
+    "updater:allow-check",
+    "updater:allow-download-and-install"
   ]
 }
