@@ -19,6 +19,7 @@
     "window:allow-create",
     "window:allow-unminimize",
     "webview:allow-create-webview-window",
-    "global-shortcut:allow-register"
+    "global-shortcut:allow-register",
+    "updater:allow-check"
   ]
 }
