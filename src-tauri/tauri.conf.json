@@ -1,6 +1,6 @@
 {
   "productName": "bintool-tauri",
-  "version": "0.0.2",
+  "version": "0.0.1",
   "identifier": "com.bintool.dev",
   "build": {
     "beforeDevCommand": "npm run dev",
