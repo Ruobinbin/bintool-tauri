@@ -7,6 +7,7 @@ fn input_enter(value: &str) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build()) //更新
         .plugin(tauri_plugin_global_shortcut::Builder::new().build()) // 全局快捷键
         .plugin(tauri_plugin_sql::Builder::default().build()) // SQLite数据库
         .plugin(tauri_plugin_shell::init())
