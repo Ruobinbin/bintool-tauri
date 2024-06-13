@@ -4,8 +4,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { register } from '@tauri-apps/plugin-global-shortcut';
-import { check } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
 
 const currentWindow = Window.getCurrent();
 let inputElement = ref<HTMLInputElement>();
@@ -44,13 +42,6 @@ onMounted(async () => {
       }
     }
   });
-  const update = await check();
-  if (update?.available) {
-    console.log(`Update to ${update.version} available! Date: ${update.date}`);
-    console.log(`Release notes: ${update.body}`);
-    await update.downloadAndInstall();
-    await relaunch();
-  }
 })
 </script>
 
