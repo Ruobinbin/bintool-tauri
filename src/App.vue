@@ -7,8 +7,8 @@ import { register } from '@tauri-apps/plugin-global-shortcut';
 
 const currentWindow = Window.getCurrent();
 let inputElement = ref<HTMLInputElement>();
-const input = ref("0.0.2");
-async function onEnter() {
+const input = ref("");
+const handleInputEnter = async () => {
   switch (input.value) {
     case '/xs':
       if (!WebviewWindow.getByLabel('novel')) {
@@ -46,7 +46,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <input :style="{ height: '40px', width: '80%', margin: '0 auto', display: 'block' }" @keyup.enter="onEnter"
+  <input :style="{ height: '40px', width: '80%', margin: '0 auto', display: 'block' }" @keyup.enter="handleInputEnter"
     v-model="input" ref="inputElement" />
 </template>
 
