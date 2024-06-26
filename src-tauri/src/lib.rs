@@ -20,9 +20,7 @@ pub fn run() {
             let _tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id().as_ref() {
-                    "quit" => {
-                        app.exit(0)
-                    }
+                    "quit" => app.exit(0),
                     _ => (),
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -46,6 +44,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build()) // 全局快捷键
         .plugin(tauri_plugin_sql::Builder::default().build()) // SQLite数据库
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_http::init()) // HTTP请求
         .invoke_handler(tauri::generate_handler![input_enter])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
