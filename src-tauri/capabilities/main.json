@@ -22,6 +22,8 @@
     "global-shortcut:allow-register",
     "updater:allow-check",
     "updater:allow-download-and-install",
+    "event:allow-listen",
+    "window:allow-destroy",
     {
       "identifier": "http:default",
       "allow": [{ "url": "https://**" }]
