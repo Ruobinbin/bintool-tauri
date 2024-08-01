@@ -37,15 +37,21 @@ async fn start_gpt_sovits() -> Result<String, String> {
 
 //保存小说音频
 #[tauri::command]
-async fn save_novel_audio(audio_data: Vec<u8>) -> Result<String, String> {
-    let timestamp = utils::default_utils::current_timestamp();
-    let file_name = format!("novel_audio_{}.wav", timestamp);
-    let file_path = NOVEL_OUTPUT_DIR.get().unwrap().join(file_name);
+async fn save_novel_audio(audio_data: Vec<u8>,audio_name: &str) -> Result<String, String> {
+    let file_path = NOVEL_OUTPUT_DIR.get().unwrap().join(audio_name);
     match utils::default_utils::write_audio_to_file(audio_data, file_path.clone()) {
         Ok(_) => Ok(file_path.to_string_lossy().to_string()),
         Err(e) => Err(e.to_string()),
     }
 }
+
+//打开路径
+#[tauri::command]
+async fn open_path(path: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(path);
+    utils::default_utils::open_path(path_buf).map_err(|e| e.to_string())
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -105,7 +111,8 @@ pub fn run() {
             input_enter,
             is_container_running,
             start_gpt_sovits,
-            save_novel_audio
+            save_novel_audio,
+            open_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
