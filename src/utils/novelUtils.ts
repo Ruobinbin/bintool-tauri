@@ -55,7 +55,8 @@ class Novel implements INovel {
             });
             const audioBlob = await response.blob();
             const audioData = Array.from(new Uint8Array(await audioBlob.arrayBuffer()));
-            this.audioSrc = await invoke("save_novel_audio", { audioData }) as string;
+            const audioName = `audio_${Date.now()}.wav`;
+            this.audioSrc = await invoke("save_novel_audio", { audioData, audioName }) as string;
         } catch (error) {
             throw error;
         } finally {

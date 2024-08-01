@@ -17,6 +17,7 @@
                 {{ IsGptSovitsRunning ? "sovit已开启" : "开启sovits" }}
             </el-button>
             <el-button @click="setNovelTable">清空并且设置表格</el-button>
+            <el-button @click="openAudioDir">打开音频目录</el-button>
             <el-button @click="insertNovel(-1)">插入</el-button>
             <br />
             <el-table :data="novels">
@@ -52,13 +53,15 @@
 </template>
 <script lang="ts" setup>
 import { fetch } from '@tauri-apps/plugin-http';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { getCurrent } from "@tauri-apps/api/window";
+import Database from '@tauri-apps/plugin-sql';
+import { resourceDir } from '@tauri-apps/api/path';
+
 import { computed, onMounted, ref } from 'vue'
 import { stripHtmlTags } from '../utils/defaultUtils'
 import { formatNovelText, Novel, fetchNovels } from '../utils/novelUtils'
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getCurrent } from "@tauri-apps/api/window";
-import Database from '@tauri-apps/plugin-sql';
 
 const fqNovelIsLoading = ref(false) //番茄小说是否在获取
 const fqNovelId = ref('') //番茄小说id
@@ -102,6 +105,12 @@ onMounted(async () => {
         }
     });
 });
+
+const openAudioDir = async () => {
+    let appdir = await resourceDir()
+    let path = `${appdir}\\user_files\\novel_output`
+    await invoke('open_path', { path })
+}
 
 // 开启sovits
 const startGptSovits = async () => {
