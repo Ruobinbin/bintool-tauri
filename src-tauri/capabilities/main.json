@@ -24,6 +24,7 @@
     "updater:allow-download-and-install",
     "event:allow-listen",
     "window:allow-destroy",
+    "path:allow-resolve-directory",
     {
       "identifier": "http:default",
       "allow": [
