@@ -1,4 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
+mod tauri_cmd;
 mod utils;
 
 use once_cell::sync::OnceCell;
@@ -9,48 +10,10 @@ use tauri::{
     Manager,
 };
 
-static APP_RESOURCE_DIR: OnceCell<PathBuf> = OnceCell::new(); //app所在目录
-static USER_FILES_DIR: OnceCell<PathBuf> = OnceCell::new(); //用户文件所在目录
+pub static APP_RESOURCE_DIR: OnceCell<PathBuf> = OnceCell::new(); //app所在目录
+pub static USER_FILES_DIR: OnceCell<PathBuf> = OnceCell::new(); //用户文件所在目录
 pub static GPT_SOVITS_MODEL_DIR: OnceCell<PathBuf> = OnceCell::new(); //gpt-sovits模型所在目录
 pub static NOVEL_OUTPUT_DIR: OnceCell<PathBuf> = OnceCell::new(); //小说输出目录
-
-#[tauri::command]
-fn input_enter(value: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", value)
-}
-
-//判断容器是否运行
-#[tauri::command]
-async fn is_container_running(container_name: &str) -> Result<bool, String> {
-    utils::bollard_utils::is_container_running(container_name)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-//开启gpt-sovits容器
-#[tauri::command]
-async fn start_gpt_sovits() -> Result<String, String> {
-    utils::bollard_utils::start_gpt_sovits()
-        .await
-        .map_err(|e| e.to_string())
-}
-
-//保存小说音频
-#[tauri::command]
-async fn save_novel_audio(audio_data: Vec<u8>,audio_name: &str) -> Result<String, String> {
-    let file_path = NOVEL_OUTPUT_DIR.get().unwrap().join(audio_name);
-    match utils::default_utils::write_audio_to_file(audio_data, file_path.clone()) {
-        Ok(_) => Ok(file_path.to_string_lossy().to_string()),
-        Err(e) => Err(e.to_string()),
-    }
-}
-
-//打开路径
-#[tauri::command]
-async fn open_path(path: String) -> Result<(), String> {
-    let path_buf = PathBuf::from(path);
-    utils::default_utils::open_path(path_buf).map_err(|e| e.to_string())
-}
 
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -108,11 +71,12 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init()) // HTTP请求
         .invoke_handler(tauri::generate_handler![
-            input_enter,
-            is_container_running,
-            start_gpt_sovits,
-            save_novel_audio,
-            open_path
+            tauri_cmd::input_enter,
+            tauri_cmd::is_container_running,
+            tauri_cmd::start_gpt_sovits,
+            tauri_cmd::save_novel_audio,
+            tauri_cmd::open_path,
+            tauri_cmd::get_gpt_sovits_models,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
