@@ -20,10 +20,10 @@ pub async fn is_container_running(container_name: &str) -> Result<bool, String> 
         .map_err(|e| e.to_string())
 }
 
-//开启gpt-sovits容器
+//启动gpt-sovits-api
 #[command]
-pub async fn start_gpt_sovits() -> Result<String, String> {
-    utils::bollard_utils::start_gpt_sovits()
+pub async fn start_gpt_sovits_api() -> Result<(), String> {
+    utils::bollard_utils::start_gpt_sovits_api()
         .await
         .map_err(|e| e.to_string())
 }
