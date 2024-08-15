@@ -13,9 +13,6 @@
             <el-input v-model="fqNovelContent" style="width: 100%" autosize type="textarea" placeholder="小说内容" />
         </el-tab-pane>
         <el-tab-pane label="生成音频">
-            <el-button :loading="IsGptSovitsLoading" @click="startGptSovits" :disabled=IsGptSovitsRunning>
-                {{ IsGptSovitsRunning ? "sovit已开启" : "开启sovits" }}
-            </el-button>
             <el-button @click="setNovelTable">清空并且设置表格</el-button>
             <el-button @click="openAudioDir">打开音频目录</el-button>
             <el-button @click="insertNovel(-1)">插入</el-button>
@@ -45,7 +42,8 @@
                 </el-table-column>
             </el-table>
         </el-tab-pane>
-        <el-tab-pane label="Role">
+        <el-tab-pane label="gpt-sovits">
+            <gpt_sovits_model />
         </el-tab-pane>
         <el-tab-pane label="Task">
         </el-tab-pane>
@@ -54,10 +52,14 @@
 <script lang="ts" setup>
 import { fetch } from '@tauri-apps/plugin-http';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
 import { getCurrent } from "@tauri-apps/api/window";
 import Database from '@tauri-apps/plugin-sql';
 import { resourceDir } from '@tauri-apps/api/path';
 
+
+import gpt_sovits_model from '../components/gpt_sovits_model.vue';
 import { computed, onMounted, ref } from 'vue'
 import { stripHtmlTags } from '../utils/defaultUtils'
 import { formatNovelText, Novel, fetchNovels } from '../utils/novelUtils'
@@ -69,8 +71,7 @@ const fqNovelApi = ref('https://fqnovel.pages.dev/content?item_id=') //番茄小
 const fqNovelContent = ref('') //番茄小说内容
 const fqNovelCount = computed(() => { return fqNovelContent.value.length }) //番茄小说字数
 const novels = ref<Novel[]>([])
-const IsGptSovitsRunning = ref(false) //是否开启sovits
-const IsGptSovitsLoading = ref(false) //sovits是否正在开启
+const isGptSovitsApiRunning = ref(false) //是否开启sovits
 
 //载入时触发
 onMounted(async () => {
@@ -85,24 +86,16 @@ onMounted(async () => {
     `);
     //初始化novels
     novels.value = await fetchNovels()
-    //初始化sovits状态
-    await invoke('is_container_running', { containerName: 'gpt-sovits' })
-        .then((is_running) => {
-            IsGptSovitsRunning.value = is_running as boolean;
-        })
-        .catch((error) => {
-            IsGptSovitsRunning.value = false;
-            ElMessage({
-                message: error as string,
-                type: 'error',
-            });
-        });
     //监听窗口关闭事件
     await getCurrent().onCloseRequested(async () => {
         await db.execute('DELETE FROM novels');
         for (const novel of novels.value) {
             await db.execute('INSERT INTO novels (content , audioSrc) VALUES (?, ?)', [novel.content, novel.audioSrc]);
         }
+    });
+
+    listen('gpt_sovits_api_running', (event) => {
+        isGptSovitsApiRunning.value = event.payload as boolean;
     });
 });
 
@@ -112,26 +105,9 @@ const openAudioDir = async () => {
     await invoke('open_path', { path })
 }
 
-// 开启sovits
-const startGptSovits = async () => {
-    IsGptSovitsLoading.value = true
-    await invoke("start_gpt_sovits").then((message) => {
-        ElMessage({
-            message: message as string,
-            type: 'success',
-        })
-        IsGptSovitsRunning.value = true
-    }).catch((error) => {
-        ElMessage({
-            message: error as string,
-            type: 'error',
-        })
-    })
-    IsGptSovitsLoading.value = false
-}
 // 生成音频
 const generateAudio = async (novelIndex: number) => {
-    if (!IsGptSovitsRunning.value) {
+    if (!isGptSovitsApiRunning.value) {
         ElMessage({
             message: 'GPT-Sovits未开启',
             type: 'error',
