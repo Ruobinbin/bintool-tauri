@@ -10,8 +10,10 @@ use bollard::{
 };
 use futures::{Stream, StreamExt};
 use std::{collections::HashMap, pin::Pin};
+use tauri::Manager;
 
-use crate::GPT_SOVITS_MODEL_DIR;
+use crate::{app_handle, gpt_sovits_model_dir};
+
 // 获取docker
 pub async fn get_docker() -> Result<Docker, Error> {
     match Docker::connect_with_socket_defaults() {
@@ -53,33 +55,39 @@ pub async fn get_container_by_name(container_name: &str) -> Result<ContainerSumm
 }
 
 // 开启gpt-sovits
-pub async fn start_gpt_sovits() -> Result<String, Error> {
+pub async fn start_gpt_sovits_container() -> Result<(), Error> {
     let docker = get_docker().await?;
 
     match docker
         .start_container("gpt-sovits", None::<StartContainerOptions<&str>>)
         .await
     {
-        Ok(_) => {}
+        Ok(_) => Ok(()),
         Err(e) => match e {
             Error::DockerResponseServerError { status_code, .. } => {
                 if status_code == 404 {
                     create_gpt_sovits().await?;
-                    return Box::pin(start_gpt_sovits()).await;
+                    Box::pin(start_gpt_sovits_container()).await
                 } else {
-                    return Err(e);
+                    Err(e)
                 }
             }
-            _ => {
-                return Err(e);
-            }
+            _ => Err(e),
         },
     }
+}
+
+// 开启gpt-sovits API服务
+pub async fn start_gpt_sovits_api() -> Result<(), Error> {
+    if !is_container_running("gpt-sovits").await? {
+        start_gpt_sovits_container().await?;
+    }
+
     let cmd = vec![
         "python",
         "api.py",
         "-dr",
-        "model/syq/我整理完今天的照片就休息了，你也别熬夜打游戏哦。.wav",
+        "gpt_sovits_model/syq/我整理完今天的照片就休息了，你也别熬夜打游戏哦。.wav",
         "-dt",
         "我整理完今天的照片就休息了，你也别熬夜打游戏哦。",
         "-dl",
@@ -87,23 +95,30 @@ pub async fn start_gpt_sovits() -> Result<String, Error> {
         "-d",
         "cuda",
         "-s",
-        "model/syq/sanyueqi_e15_s180.pth",
+        "gpt_sovits_model/syq/sanyueqi_e15_s180.pth",
         "-g",
-        "model/syq/sanyueqi-e15.ckpt",
+        "gpt_sovits_model/syq/sanyueqi-e15.ckpt",
     ];
+
     let mut stream = run_command_in_container("gpt-sovits", cmd).await?;
+
     while let Some(result) = stream.next().await {
         match result {
             Ok(output) => {
-                println!("输出: {}", output);
+                app_handle().emit("gpt_sovits_api_log", &output).unwrap();
                 if output.contains("Press CTRL+C to quit") {
-                    return Ok("gpt_sovits启动成功".to_string());
+                    app_handle().emit("gpt_sovits_api_running", true).unwrap();
                 }
             }
-            Err(e) => return Err(e),
+            Err(e) => {
+                app_handle().emit("gpt_sovits_api_running", false).unwrap();
+                return Err(e);
+            }
         }
     }
-    Ok("gpt_sovits启动后没有输出Press CTRL+C to quit".to_string())
+
+    app_handle().emit("gpt_sovits_api_running", false).unwrap();
+    Ok(())
 }
 
 // 创建gpt-sovits容器
@@ -152,12 +167,8 @@ pub async fn create_gpt_sovits() -> Result<(), Error> {
         }]),
     );
 
-    let mount_path = GPT_SOVITS_MODEL_DIR
-        .get()
-        .unwrap()
-        .to_string_lossy()
-        .to_string()
-        + ":/workspace/model";
+    let mount_path =
+        gpt_sovits_model_dir().to_string_lossy().to_string() + ":/workspace/gpt_sovits_model";
 
     let config = Config::<&str> {
         image: Some("breakstring/gpt-sovits:latest"),
