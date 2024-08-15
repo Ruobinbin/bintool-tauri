@@ -23,6 +23,7 @@
     "updater:allow-check",
     "updater:allow-download-and-install",
     "event:allow-listen",
+    "event:allow-emit",
     "window:allow-destroy",
     "path:allow-resolve-directory",
     {
