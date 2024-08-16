@@ -14,7 +14,7 @@
       <ul>
         <li v-for="wav in model.refer_wavs" :key="wav.refer_wav_path"
           :class="{ 'selected': wav.refer_wav_path === currentReferAudio?.refer_wav_path }"
-          @click.stop="selectWav(wav)">
+          @click.stop="selectReferWav(wav)">
           <div>
             <span class="prompt-text">{{ wav.prompt_text }}</span>
             <audio :src="convertFileSrc(wav.refer_wav_path)" controls></audio>
@@ -105,8 +105,6 @@ const selectModel = async (model: GptSovitsModel) => {
     });
     return;
   }
-  console.log('Selected Model:', localPathToContainerPath(model.gpt_model_path));
-  console.log('Selected Model:', localPathToContainerPath(model.sovits_model_path));
 
   fetch('http://127.0.0.1:9880/set_model', {
     method: 'POST',
@@ -126,7 +124,6 @@ const selectModel = async (model: GptSovitsModel) => {
           type: 'success',
         });
       } else {
-        console.log(response);
         ElMessage({
           message: `模型切换失败，状态码：${response}`,
           type: 'error',
@@ -152,10 +149,49 @@ const startGptSovitsApi = async () => {
   IsGptSovitsApiLoading.value = false;
 }
 
-const selectWav = (wav: ReferWav) => {
-  currentReferAudio.value = wav;
-  console.log('Selected Wav:', wav);
+const selectReferWav = (referWav: ReferWav) => {
+  if (!isGptSovitsApiRunning.value) {
+    ElMessage({
+      message: 'GPT-Sovits 未运行，请先启动容器。',
+      type: 'error',
+    });
+    return;
+  }
+
+  fetch('http://127.0.0.1:9880/change_refer', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      refer_wav_path: localPathToContainerPath(referWav.refer_wav_path),
+      prompt_text: referWav.prompt_text,
+      prompt_language: referWav.prompt_language,
+    }),
+  }).then(response => {
+    if (response.ok) {
+      currentReferAudio.value = referWav;
+      ElMessage({
+        message: '参考音频切换成功。',
+        type: 'success',
+      });
+    } else {
+      ElMessage({
+        message: `参考音频切换失败，状态码：${response}`,
+        type: 'error',
+      });
+    }
+  })
+    .catch(error => {
+      ElMessage({
+        message: `参考音频切换失败，错误信息：${error.message}`,
+        type: 'error',
+      });
+    });
 };
+
+
+
 </script>
 
 <style>
