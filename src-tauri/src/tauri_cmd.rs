@@ -2,8 +2,8 @@ use crate::utils;
 use std::path::PathBuf;
 use tauri::command;
 
-use crate::NOVEL_OUTPUT_DIR;
 use crate::GPT_SOVITS_MODEL_DIR;
+use crate::NOVEL_OUTPUT_DIR;
 
 //测试命令
 #[command]
@@ -26,6 +26,16 @@ pub async fn start_gpt_sovits_api() -> Result<(), String> {
     utils::bollard_utils::start_gpt_sovits_api()
         .await
         .map_err(|e| e.to_string())
+
+    // let cmd = vec![
+    //     "-i", "/workspace/novel_output/audio_1723745132049.wav",
+    //     "-c:v", "libx264",
+    //     "/workspace/novel_output/output.mp4"
+    // ];
+
+    // utils::bollard_utils::create_and_run_ffmpeg_container(cmd)
+    //     .await
+    //     .map_err(|e| e.to_string())
 }
 
 //保存小说音频
@@ -47,8 +57,17 @@ pub async fn open_path(path: String) -> Result<(), String> {
 
 //获取gpt_sovits模型列表
 #[command]
-pub async fn get_gpt_sovits_models() -> Result<Vec<utils::gpt_sovits_utils::GptSovitsModel>, String> {
+pub async fn get_gpt_sovits_models() -> Result<Vec<utils::gpt_sovits_utils::GptSovitsModel>, String>
+{
     let path = GPT_SOVITS_MODEL_DIR.get().unwrap();
     let models = utils::gpt_sovits_utils::get_gpt_sovits_models(path);
     Ok(models)
+}
+
+//写入字符串到文件
+#[command]
+pub fn write_string_to_file(text: &str, file_path: String) -> Result<(), String> {
+    let file_path = PathBuf::from(file_path);
+    let _ = utils::default_utils::write_string_to_file(text, file_path).map_err(|e| e.to_string());
+    Ok(())
 }
