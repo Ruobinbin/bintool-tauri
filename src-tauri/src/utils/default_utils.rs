@@ -103,3 +103,10 @@ pub fn get_files_with_extension(dir_path: &Path, extension: &str) -> Vec<PathBuf
         .filter(|path| path.is_file() && path.extension().map_or(false, |ext| ext == extension))
         .collect()
 }
+
+// 写入字符串内容到文件
+pub fn write_string_to_file(text: &str, file_path: PathBuf) -> Result<(), std::io::Error> {
+    let mut file = File::create(file_path)?;
+    file.write_all(text.as_bytes())?;
+    Ok(())
+}
