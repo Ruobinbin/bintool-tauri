@@ -99,6 +99,7 @@ pub fn run() {
             tauri_cmd::save_novel_audio,
             tauri_cmd::open_path,
             tauri_cmd::get_gpt_sovits_models,
+            tauri_cmd::write_string_to_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
