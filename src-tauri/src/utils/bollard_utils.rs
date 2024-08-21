@@ -1,10 +1,11 @@
 use bollard::{
     container::{
-        Config, CreateContainerOptions, InspectContainerOptions, ListContainersOptions, LogOutput,
-        StartContainerOptions,
+        Config, CreateContainerOptions, InspectContainerOptions, ListContainersOptions,
+        LogsOptions, RemoveContainerOptions, StartContainerOptions,
     },
     errors::Error,
     exec::{CreateExecOptions, StartExecResults},
+    image::{CreateImageOptions, ListImagesOptions},
     secret::{ContainerStateStatusEnum, ContainerSummary, PortBinding},
     Docker,
 };
@@ -12,46 +13,46 @@ use futures::{Stream, StreamExt};
 use std::{collections::HashMap, pin::Pin};
 use tauri::Manager;
 
-use crate::{app_handle, gpt_sovits_model_dir};
+use crate::{app_handle, gpt_sovits_model_dir, user_files_dir};
 
-// 获取docker
-pub async fn get_docker() -> Result<Docker, Error> {
-    match Docker::connect_with_socket_defaults() {
-        Ok(docker) => match docker.ping().await {
-            Ok(_) => Ok(docker),
-            Err(e) => Err(e),
-        },
-        Err(e) => Err(e),
-    }
-}
-
-// 根据名称获取容器
-#[allow(dead_code)]
-pub async fn get_container_by_name(container_name: &str) -> Result<ContainerSummary, Error> {
+/// 创建并启动一个 ffmpeg 容器，执行指定的命令
+pub async fn create_and_run_ffmpeg_container(cmd: Vec<&str>) -> Result<(), Error> {
     let docker = get_docker().await?;
 
-    let containers = docker
-        .list_containers(Some(ListContainersOptions::<String> {
-            all: true,
-            ..Default::default()
-        }))
-        .await?;
-
-    for container in containers {
-        if let Some(names) = &container.names {
-            if names
-                .iter()
-                .any(|name| name == format!("/{container_name}").as_str())
-            {
-                return Ok(container);
-            }
-        }
+    if !is_image_exists("ruobinqaq/ffmpeg:latest").await? {
+        pull_image("ruobinqaq/ffmpeg:latest", "gpt_sovits_api_log").await?;
     }
 
-    Err(Error::DockerResponseServerError {
-        status_code: 404,
-        message: format!("没有找到容器'{}'", container_name),
-    })
+    if let Ok(_) = get_container_by_name("ffmpeg").await {
+        remove_container("ffmpeg").await?;
+    }
+
+    let options = Some(CreateContainerOptions::<&str> {
+        name: "ffmpeg",
+        platform: None,
+    });
+
+    let mount_path = user_files_dir().to_string_lossy().to_string() + ":/workspace";
+
+    let config = Config::<&str> {
+        image: Some("ruobinqaq/ffmpeg:latest"),
+        cmd: Some(cmd),
+        host_config: Some(bollard::service::HostConfig {
+            binds: Some(vec![mount_path]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    docker.create_container(options, config).await?;
+
+    docker
+        .start_container("ffmpeg", None::<StartContainerOptions<&str>>)
+        .await?;
+
+    get_container_logs("ffmpeg", "gpt_sovits_api_log").await?;
+
+    Ok(())
 }
 
 // 开启gpt-sovits
@@ -79,9 +80,7 @@ pub async fn start_gpt_sovits_container() -> Result<(), Error> {
 
 // 开启gpt-sovits API服务
 pub async fn start_gpt_sovits_api() -> Result<(), Error> {
-    if !is_container_running("gpt-sovits").await? {
-        start_gpt_sovits_container().await?;
-    }
+    start_gpt_sovits_container().await?;
 
     let cmd = vec![
         "python",
@@ -124,6 +123,10 @@ pub async fn start_gpt_sovits_api() -> Result<(), Error> {
 // 创建gpt-sovits容器
 pub async fn create_gpt_sovits() -> Result<(), Error> {
     let docker = get_docker().await?;
+
+    if !is_image_exists("breakstring/gpt-sovits:latest").await? {
+        pull_image("breakstring/gpt-sovits:latest", "gpt_sovits_api_log").await?;
+    }
 
     let options = Some(CreateContainerOptions::<&str> {
         name: "gpt-sovits",
@@ -172,22 +175,6 @@ pub async fn create_gpt_sovits() -> Result<(), Error> {
 
     let config = Config::<&str> {
         image: Some("breakstring/gpt-sovits:latest"),
-        // cmd: Some(vec![
-        //     "python",
-        //     "api.py",
-        //     "-dr",
-        //     "model/syq/我整理完今天的照片就休息了，你也别熬夜打游戏哦。.wav",
-        //     "-dt",
-        //     "我整理完今天的照片就休息了，你也别熬夜打游戏哦。",
-        //     "-dl",
-        //     "zh",
-        //     "-d",
-        //     "cuda",
-        //     "-s",
-        //     "model/syq/sanyueqi_e15_s180.pth",
-        //     "-g",
-        //     "model/syq/sanyueqi-e15.ckpt",
-        // ]),
         host_config: Some(bollard::service::HostConfig {
             port_bindings: Some(port_bindings),
             binds: Some(vec![mount_path]),
@@ -229,20 +216,8 @@ async fn run_command_in_container(
 
     match start_result {
         StartExecResults::Attached { output, .. } => {
-            let stream = output.map(|chunk| match chunk {
-                Ok(LogOutput::StdErr { message }) => Ok(format!(
-                    "标准错误输出: {}",
-                    String::from_utf8_lossy(&message)
-                )),
-                Ok(LogOutput::StdOut { message }) => {
-                    Ok(format!("标准输出: {}", String::from_utf8_lossy(&message)))
-                }
-                Ok(LogOutput::StdIn { message }) => {
-                    Ok(format!("标准输入: {}", String::from_utf8_lossy(&message)))
-                }
-                Ok(LogOutput::Console { message }) => {
-                    Ok(format!("控制台输出: {}", String::from_utf8_lossy(&message)))
-                }
+            let stream = output.map(|log_output| match log_output {
+                Ok(log_output) => Ok(format!("{}", log_output)),
                 Err(e) => Err(e),
             });
             Ok(stream.boxed())
@@ -272,4 +247,147 @@ pub async fn is_container_running(container_name: &str) -> Result<bool, Error> {
         Some(state) if state.status == Some(ContainerStateStatusEnum::RUNNING) => Ok(true),
         _ => Ok(false),
     }
+}
+
+// 判断镜像是否存在
+pub async fn is_image_exists(image_name: &str) -> Result<bool, Error> {
+    let docker = get_docker().await?;
+
+    let mut filters = HashMap::new();
+    filters.insert("reference".to_string(), vec![image_name.to_string()]);
+
+    let options = ListImagesOptions::<String> {
+        all: true,
+        filters,
+        digests: false,
+    };
+
+    let images = docker.list_images(Some(options)).await?;
+
+    if !images.is_empty() {
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
+// 拉取镜像
+pub async fn pull_image(image_name: &str, emit_name: &str) -> Result<(), Error> {
+    let docker = get_docker().await?;
+
+    let create_options = CreateImageOptions {
+        from_image: image_name,
+        ..Default::default()
+    };
+
+    let mut stream = docker.create_image(Some(create_options), None, None);
+
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(info) => {
+                if let Some(progress_detail) = info.progress_detail {
+                    let progress = format!(
+                        "{}/{}",
+                        progress_detail.current.unwrap_or(-1),
+                        progress_detail.total.unwrap_or(-1)
+                    );
+                    println!("{}", progress);
+                    app_handle().emit(emit_name, &progress).unwrap();
+                }
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// 获取docker
+pub async fn get_docker() -> Result<Docker, Error> {
+    match Docker::connect_with_socket_defaults() {
+        Ok(docker) => match docker.ping().await {
+            Ok(_) => Ok(docker),
+            Err(e) => Err(e),
+        },
+        Err(e) => Err(e),
+    }
+}
+
+// 根据名称获取容器
+#[allow(dead_code)]
+pub async fn get_container_by_name(container_name: &str) -> Result<ContainerSummary, Error> {
+    let docker = get_docker().await?;
+
+    let containers = docker
+        .list_containers(Some(ListContainersOptions::<String> {
+            all: true,
+            ..Default::default()
+        }))
+        .await?;
+
+    for container in containers {
+        if let Some(names) = &container.names {
+            if names
+                .iter()
+                .any(|name| name == format!("/{container_name}").as_str())
+            {
+                return Ok(container);
+            }
+        }
+    }
+
+    Err(Error::DockerResponseServerError {
+        status_code: 404,
+        message: format!("没有找到容器'{}'", container_name),
+    })
+}
+
+/// 删除指定名称的容器
+pub async fn remove_container(container_name: &str) -> Result<(), Error> {
+    let docker = get_docker().await?;
+
+    docker
+        .remove_container(
+            container_name,
+            Some(RemoveContainerOptions {
+                v: true,     // 删除容器时也删除其挂载的卷
+                force: true, // 强制删除，即使容器正在运行
+                link: false, // 默认不删除链接
+            }),
+        )
+        .await?;
+
+    Ok(())
+}
+
+/// 获取指定名称的容器的日志
+pub async fn get_container_logs(container_name: &str, emit_name: &str) -> Result<(), Error> {
+    let docker = get_docker().await?;
+
+    let logs_options = LogsOptions::<String> {
+        stdout: true,
+        stderr: true,
+        tail: "all".to_string(),
+        follow: true,
+        ..Default::default()
+    };
+
+    let mut log_stream = docker.logs(container_name, Some(logs_options));
+
+    while let Some(log_output) = log_stream.next().await {
+        match log_output {
+            Ok(log_output) => {
+                app_handle()
+                    .emit(emit_name, format!("{}", log_output))
+                    .unwrap();
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
+
+    Ok(())
 }
