@@ -63,7 +63,7 @@ onMounted(async () => {
       });
     } else {
       ElMessage({
-        message: 'GPT-Sovits API 未启动或已关闭',
+        message: 'GPT-Sovits API 已关闭',
         type: 'warning',
       });
     }
