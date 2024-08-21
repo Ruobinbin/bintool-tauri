@@ -19,4 +19,10 @@ const stripHtmlTags = (html: string): string => {
     return div.textContent || div.innerText || "";
 };
 
-export { ISO8601ToSeconds, stripHtmlTags };
+// 获取文件名
+function getFileNameFromPath(path: string): string {
+    const match = path.match(/[^/\\]+$/);
+    return match ? match[0] : '';
+}
+
+export { ISO8601ToSeconds, stripHtmlTags, getFileNameFromPath };
