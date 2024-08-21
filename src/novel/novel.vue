@@ -16,6 +16,7 @@
             <el-button @click="setNovelTable">清空并且设置表格</el-button>
             <el-button @click="openAudioDir">打开音频目录</el-button>
             <el-button @click="insertNovel(-1)">插入</el-button>
+            <el-button @click="test">test</el-button>
             <br />
             <el-table :data="novels">
                 <el-table-column label="索引" :min-width="20">
@@ -58,10 +59,9 @@ import { getCurrent } from "@tauri-apps/api/window";
 import Database from '@tauri-apps/plugin-sql';
 import { resourceDir } from '@tauri-apps/api/path';
 
-
 import gpt_sovits_model from '../components/gpt_sovits_model.vue';
 import { computed, onMounted, ref } from 'vue'
-import { stripHtmlTags } from '../utils/defaultUtils'
+import { stripHtmlTags, getFileNameFromPath } from '../utils/defaultUtils'
 import { formatNovelText, Novel, fetchNovels } from '../utils/novelUtils'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -99,6 +99,13 @@ onMounted(async () => {
     });
 });
 
+const test = async () => {
+    let filePath = `${await resourceDir()}\\user_files\\novel_output\\audios.txt`
+    let text = novels.value.map(novel => `file /workspace/novel_output/${getFileNameFromPath(novel.audioSrc)}`).join('\n');
+    await invoke('write_string_to_file', { text, filePath })
+}
+
+// 打开音频目录
 const openAudioDir = async () => {
     let appdir = await resourceDir()
     let path = `${appdir}\\user_files\\novel_output`
