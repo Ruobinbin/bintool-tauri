@@ -46,7 +46,10 @@
         <el-tab-pane label="gpt-sovits">
             <gpt_sovits_model />
         </el-tab-pane>
-        <el-tab-pane label="Task">
+        <el-tab-pane label="视频">
+        </el-tab-pane>
+        <el-tab-pane label="最后合成">
+            <el-button @click="test">test</el-button>
         </el-tab-pane>
     </el-tabs>
 </template>
@@ -100,9 +103,77 @@ onMounted(async () => {
 });
 
 const test = async () => {
-    let filePath = `${await resourceDir()}\\user_files\\novel_output\\audios.txt`
+    let filePath = `${await resourceDir()}\\user_files\\novel_output\\audios.txt`;
     let text = novels.value.map(novel => `file /workspace/novel_output/${getFileNameFromPath(novel.audioSrc)}`).join('\n');
-    await invoke('write_string_to_file', { text, filePath })
+    await invoke('write_string_to_file', { text, filePath }).then(() => {
+        ElMessage({
+            message: `生成文件 ${filePath} 成功`,
+            type: 'success',
+        });
+    }).catch((error) => {
+        ElMessage({
+            message: `生成文件 ${filePath} 失败: ${error as string}`,
+            type: 'error',
+        });
+        return;
+    });
+
+    let novelsTextFilePath = `${await resourceDir()}\\user_files\\novel_output\\text.txt`;
+    let novelsText = novels.value.map(novel => novel.content).join('\n');
+    await invoke('write_string_to_file', { text: novelsText, filePath: novelsTextFilePath }).then(() => {
+        ElMessage({
+            message: `生成文件 ${novelsTextFilePath} 成功`,
+            type: 'success',
+        });
+    }).catch((error) => {
+        ElMessage({
+            message: `生成文件 ${novelsTextFilePath} 失败: ${error as string}`,
+            type: 'error',
+        });
+        return;
+    });
+
+    let audioSynthesiscmd: string[] = [
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        "/workspace/novel_output/audios.txt",
+        "-c:a",
+        "pcm_s16le",
+        "/workspace/novel_output/audio.wav"
+    ];
+
+    await invoke('run_ffmpeg_cmd', { cmd: audioSynthesiscmd }).then(() => {
+        ElMessage({
+            message: '已执行音频合成命令',
+            type: 'success',
+        })
+    }).catch((error) => {
+        ElMessage({
+            message: `合成audios.wav失败: ${error as string}`,
+            type: 'error',
+        })
+        return
+    })
+
+    let audioPath = "novel_output/audio.wav"
+    let textPath = "novel_output/text.txt"
+    let outputPath = "novel_output/audio_srt.srt"
+    await invoke('run_aeneas_cmd', { audioPath, textPath, outputPath }).then(() => {
+        ElMessage({
+            message: `生成文件 ${outputPath} 成功`,
+            type: 'success',
+        })
+    }).catch((error) => {
+        ElMessage({
+            message: `生成文件 ${outputPath} 失败: ${error as string}`,
+            type: 'error',
+        })
+        return
+    })
 }
 
 // 打开音频目录

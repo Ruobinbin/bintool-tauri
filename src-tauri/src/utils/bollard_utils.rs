@@ -15,6 +15,58 @@ use tauri::Manager;
 
 use crate::{app_handle, gpt_sovits_model_dir, user_files_dir};
 
+/// 创建并启动一个 aeneas 容器，执行指定的命令
+pub async fn create_and_run_aeneas_container(
+    audio_path: String,
+    text_path: String,
+    output_path: String,
+) -> Result<(), Error> {
+    let docker = get_docker().await?;
+
+    if !is_image_exists("shreshthtuli/aeneas").await? {
+        pull_image("shreshthtuli/aeneas", "aeneas_log").await?;
+    }
+
+    if let Ok(_) = get_container_by_name("aeneas").await {
+        remove_container("aeneas").await?;
+    }
+
+    let mount_path = user_files_dir().to_string_lossy().to_string() + ":/workspace";
+
+    let cmd = format!(
+        "cd ~/Aeneas/aeneas && python -m aeneas.tools.execute_task /workspace/{} /workspace/{} 'task_language=zho|os_task_file_format=srt|is_text_type=plain' /workspace/{}",
+        audio_path,
+        text_path,
+        output_path
+    );
+
+    let config = Config::<&str> {
+        image: Some("shreshthtuli/aeneas"),
+        cmd: Some(vec!["/bin/bash", "-c", cmd.as_str()]),
+        env: Some(vec!["PYTHONIOENCODING=UTF-8"]),
+        host_config: Some(bollard::service::HostConfig {
+            binds: Some(vec![mount_path]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let options = Some(CreateContainerOptions::<&str> {
+        name: "aeneas",
+        platform: None,
+    });
+
+    docker.create_container(options, config).await?;
+    docker
+        .start_container("aeneas", None::<StartContainerOptions<&str>>)
+        .await?;
+
+    emit_container_logs("aeneas", "gpt_sovits_api_log").await?;
+    check_container_logs_for_string("aeneas", "Created file").await?;
+
+    Ok(())
+}
+
 /// 创建并启动一个 ffmpeg 容器，执行指定的命令
 pub async fn create_and_run_ffmpeg_container(cmd: Vec<&str>) -> Result<(), Error> {
     let docker = get_docker().await?;
@@ -50,7 +102,7 @@ pub async fn create_and_run_ffmpeg_container(cmd: Vec<&str>) -> Result<(), Error
         .start_container("ffmpeg", None::<StartContainerOptions<&str>>)
         .await?;
 
-    get_container_logs("ffmpeg", "gpt_sovits_api_log").await?;
+    emit_container_logs("ffmpeg", "gpt_sovits_api_log").await?;
 
     Ok(())
 }
@@ -222,9 +274,8 @@ async fn run_command_in_container(
             });
             Ok(stream.boxed())
         }
-        StartExecResults::Detached => Err(Error::DockerResponseServerError {
-            status_code: 500,
-            message: "命令已执行无返回值".to_string(),
+        StartExecResults::Detached => Err(Error::DockerStreamError {
+            error: "命令已执行无返回值".to_string(),
         }),
     }
 }
@@ -338,9 +389,8 @@ pub async fn get_container_by_name(container_name: &str) -> Result<ContainerSumm
         }
     }
 
-    Err(Error::DockerResponseServerError {
-        status_code: 404,
-        message: format!("没有找到容器'{}'", container_name),
+    Err(Error::DockerStreamError {
+        error: format!("没有找到容器'{}'", container_name),
     })
 }
 
@@ -362,8 +412,8 @@ pub async fn remove_container(container_name: &str) -> Result<(), Error> {
     Ok(())
 }
 
-/// 获取指定名称的容器的日志
-pub async fn get_container_logs(container_name: &str, emit_name: &str) -> Result<(), Error> {
+/// 监听指定名称的容器的日志并发送到前端
+pub async fn emit_container_logs(container_name: &str, emit_name: &str) -> Result<(), Error> {
     let docker = get_docker().await?;
 
     let logs_options = LogsOptions::<String> {
@@ -390,4 +440,44 @@ pub async fn get_container_logs(container_name: &str, emit_name: &str) -> Result
     }
 
     Ok(())
+}
+
+/// 检查指定名称的容器的日志中是否包含指定字符串
+pub async fn check_container_logs_for_string(
+    container_name: &str,
+    search_string: &str,
+) -> Result<(), Error> {
+    let docker = get_docker().await?;
+    let mut logs = docker.logs(
+        container_name,
+        Some(LogsOptions::<String> {
+            stdout: true,
+            stderr: true,
+            follow: true,
+            ..Default::default()
+        }),
+    );
+
+    let mut collected_logs = String::new();
+    while let Some(log) = logs.next().await {
+        match log {
+            Ok(log) => {
+                let log_message = format!("{}", log);
+                collected_logs.push_str(&log_message);
+                if log_message.contains(search_string) {
+                    return Ok(());
+                }
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
+
+    Err(Error::DockerStreamError {
+        error: format!(
+            "容器'{}'的日志中没有输出'{}'以下是日志：{}",
+            container_name, search_string, collected_logs
+        ),
+    })
 }

@@ -71,3 +71,23 @@ pub fn write_string_to_file(text: &str, file_path: String) -> Result<(), String>
     let _ = utils::default_utils::write_string_to_file(text, file_path).map_err(|e| e.to_string());
     Ok(())
 }
+
+//运行ffmpeg命令
+#[command]
+pub async fn run_ffmpeg_cmd(cmd: Vec<&str>) -> Result<(), String> {
+    utils::bollard_utils::create_and_run_ffmpeg_container(cmd)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+//运行aeneas命令
+#[command]
+pub async fn run_aeneas_cmd(
+    audio_path: String,
+    text_path: String,
+    output_path: String,
+) -> Result<(), String> {
+    utils::bollard_utils::create_and_run_aeneas_container(audio_path, text_path, output_path)
+        .await
+        .map_err(|e| e.to_string())
+}

@@ -100,6 +100,8 @@ pub fn run() {
             tauri_cmd::open_path,
             tauri_cmd::get_gpt_sovits_models,
             tauri_cmd::write_string_to_file,
+            tauri_cmd::run_ffmpeg_cmd,
+            tauri_cmd::run_aeneas_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
