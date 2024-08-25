@@ -193,7 +193,7 @@ const test = async () => {
             "/workspace/novel_output/audios.wav"
         ];
         await invoke('run_ffmpeg_cmd', { cmd: audioSynthesiscmd });
-        audios.value!.src = convertFileSrc(OUTPUT_PATH.value + '\\audio.wav');
+        audios.value!.src = convertFileSrc(OUTPUT_PATH.value + '\\audios.wav');
         audios.value?.load();
         ElMessage({
             message: '已执行音频合成命令',
@@ -210,9 +210,9 @@ const test = async () => {
         });
 
         // 字幕生成
-        let audioPath = "novel_output/audio.wav";
+        let audioPath = "novel_output/audios.wav";
         let textPath = "novel_output/text.txt";
-        let outputPath = "novel_output/audio_srt.srt";
+        let outputPath = "novel_output/audios_srt.srt";
         await invoke('run_aeneas_cmd', { audioPath, textPath, outputPath });
         ElMessage({
             message: `生成文件 ${outputPath} 成功`,
