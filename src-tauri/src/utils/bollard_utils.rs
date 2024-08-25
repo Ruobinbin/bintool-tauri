@@ -15,6 +15,51 @@ use tauri::Manager;
 
 use crate::{app_handle, gpt_sovits_model_dir, user_files_dir};
 
+/// 创建并启动一个 yt-dlp 容器，执行指定的命令
+pub async fn create_and_run_yt_dlp_container(cmd: Vec<&str>) -> Result<String, Error> {
+    let docker = get_docker().await?;
+
+    if !is_image_exists("jauderho/yt-dlp").await? {
+        pull_image("jauderho/yt-dlp", "gpt_sovits_api_log").await?;
+    }
+
+    if let Ok(_) = get_container_by_name("yt-dlp").await {
+        remove_container("yt-dlp").await?;
+    }
+
+    let mount_path = user_files_dir().to_string_lossy().to_string() + ":/workspace";
+
+    let config = Config::<&str> {
+        image: Some("jauderho/yt-dlp"),
+        cmd: Some(cmd),
+        env: Some(vec![
+            "HTTP_PROXY=http://host.docker.internal:7890",
+            "HTTPS_PROXY=http://host.docker.internal:7890",
+        ]),
+        host_config: Some(bollard::service::HostConfig {
+            binds: Some(vec![mount_path]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let options = Some(CreateContainerOptions::<&str> {
+        name: "yt-dlp",
+        platform: None,
+    });
+
+    docker.create_container(options, config).await?;
+
+    docker
+        .start_container("yt-dlp", None::<StartContainerOptions<&str>>)
+        .await?;
+
+    emit_container_logs("yt-dlp", "gpt_sovits_api_log").await?;
+    let logs = get_container_logs("yt-dlp").await?;
+
+    Ok(logs)
+}
+
 /// 创建并启动一个 aeneas 容器，执行指定的命令
 pub async fn create_and_run_aeneas_container(
     audio_path: String,
@@ -480,4 +525,34 @@ pub async fn check_container_logs_for_string(
             container_name, search_string, collected_logs
         ),
     })
+}
+
+/// 获取指定容器的完整日志
+pub async fn get_container_logs(container_name: &str) -> Result<String, Error> {
+    let docker = get_docker().await?;
+
+    let logs_options = LogsOptions::<String> {
+        stdout: true,
+        stderr: true,
+        tail: "all".to_string(),
+        follow: false,
+        ..Default::default()
+    };
+
+    let mut log_stream = docker.logs(container_name, Some(logs_options));
+
+    let mut collected_logs = String::new();
+
+    while let Some(log_output) = log_stream.next().await {
+        match log_output {
+            Ok(log_output) => {
+                collected_logs.push_str(&format!("{}", log_output));
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
+
+    Ok(collected_logs)
 }
