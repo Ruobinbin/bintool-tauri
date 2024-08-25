@@ -26,6 +26,7 @@
     "event:allow-emit",
     "window:allow-destroy",
     "path:allow-resolve-directory",
+    "shell:allow-open",
     {
       "identifier": "http:default",
       "allow": [
