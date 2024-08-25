@@ -5,10 +5,12 @@ mod utils;
 use once_cell::sync::OnceCell;
 use std::path::PathBuf;
 use tauri::{
-    menu::{MenuBuilder, MenuItemBuilder}, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}, AppHandle, Manager
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager,
 };
 
-pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new();//APP句柄
+pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new(); //APP句柄
 pub static APP_RESOURCE_DIR: OnceCell<PathBuf> = OnceCell::new(); //app所在目录
 pub static USER_FILES_DIR: OnceCell<PathBuf> = OnceCell::new(); //用户文件所在目录
 pub static GPT_SOVITS_MODEL_DIR: OnceCell<PathBuf> = OnceCell::new(); //gpt-sovits模型所在目录
@@ -34,15 +36,13 @@ pub fn novel_output_dir() -> PathBuf {
     NOVEL_OUTPUT_DIR.get().unwrap().clone()
 }
 
-
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             // 初始化APP句柄
             APP_HANDLE.set(app.handle().clone()).unwrap();
-            // 初始化数据目录 
+            // 初始化数据目录
             let resources_dir = app.path().resource_dir().unwrap();
             APP_RESOURCE_DIR
                 .set(utils::default_utils::remove_long_path_prefix(
@@ -102,6 +102,7 @@ pub fn run() {
             tauri_cmd::write_string_to_file,
             tauri_cmd::run_ffmpeg_cmd,
             tauri_cmd::run_aeneas_cmd,
+            tauri_cmd::run_yt_dlp_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
