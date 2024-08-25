@@ -30,11 +30,11 @@ interface INovel {
 }
 
 class Novel implements INovel {
-    loading: boolean;
-
-    constructor(public content: string, public audioSrc: string = '未生成') {
-        this.loading = false;
-    }
+    constructor(
+        public content: string = '',
+        public audioSrc: string = '未生成',
+        public loading: boolean = false
+    ) { }
 
     printDetails(): void {
         console.log(`Content: ${this.content}, Audio Source: ${this.audioSrc}`);
