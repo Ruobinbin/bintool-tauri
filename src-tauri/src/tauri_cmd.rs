@@ -91,3 +91,12 @@ pub async fn run_aeneas_cmd(
         .await
         .map_err(|e| e.to_string())
 }
+
+//运行yt_dlp命令
+#[command]
+pub async fn run_yt_dlp_cmd(cmd: Vec<&str>) -> Result<String, String> {
+    match utils::bollard_utils::create_and_run_yt_dlp_container(cmd).await {
+        Ok(logs) => Ok(logs),
+        Err(e) => Err(e.to_string()),
+    }
+}
