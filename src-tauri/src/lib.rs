@@ -103,6 +103,7 @@ pub fn run() {
             tauri_cmd::run_ffmpeg_cmd,
             tauri_cmd::run_aeneas_cmd,
             tauri_cmd::run_yt_dlp_cmd,
+            tauri_cmd::check_file_exists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

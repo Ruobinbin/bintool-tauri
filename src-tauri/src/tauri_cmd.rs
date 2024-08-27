@@ -1,4 +1,5 @@
 use crate::utils;
+use std::path::Path;
 use std::path::PathBuf;
 use tauri::command;
 
@@ -99,4 +100,10 @@ pub async fn run_yt_dlp_cmd(cmd: Vec<&str>) -> Result<String, String> {
         Ok(logs) => Ok(logs),
         Err(e) => Err(e.to_string()),
     }
+}
+
+//检查文件是否存在
+#[command]
+pub fn check_file_exists(path: String) -> bool {
+    Path::new(&path).exists()
 }
