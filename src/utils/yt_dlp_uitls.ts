@@ -1,3 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
+import { ElMessage } from "element-plus";
+
 interface IThumbnail {
     url: string;
     height: number;
@@ -41,6 +44,29 @@ class Video implements IVideo {
         });
 
         return largestThumbnail.url;
+    }
+
+    public async downloadVideo(path: string): Promise<void> {
+        const outputFilePath = `${path}/${this.id}.mp4`;
+
+        const cmd = [
+            this.url,
+            '-f', 'bestvideo',
+            '-o', outputFilePath
+        ];
+
+        try {
+            await invoke<string>('run_yt_dlp_cmd', { cmd });
+            ElMessage({
+                message: '视频下载成功',
+                type: 'success',
+            });
+        } catch (err) {
+            ElMessage({
+                message: `操作失败: ${err as string}`,
+                type: 'error',
+            });
+        }
     }
 }
 

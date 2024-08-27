@@ -60,6 +60,7 @@
                             @click="del_video(video)" style="width: 100%; height: auto; border-radius: 10px;" />
                         <a :href="video.url" @click.prevent="open(video.url)">{{ video.url }}</a>
                         <p>时长: {{ video.duration }} 秒</p>
+                        <el-button @click="video.downloadVideo('/workspace/novel_output/')">下载</el-button>
                     </div>
                 </div>
             </div>
@@ -76,7 +77,18 @@
             </div>
         </el-tab-pane>
         <el-tab-pane label="最后合成">
-            <el-button @click="test">test</el-button>
+            <el-button @click="test">合成视频</el-button>
+            <el-select v-model="videoOrientation" placeholder="选择视频方向">
+                <el-option label="横屏 (Landscape)" value="landscape"></el-option>
+                <el-option label="竖屏 (Portrait)" value="portrait"></el-option>
+            </el-select>
+            <el-steps :active="currentStep" finish-status="success">
+                <el-step title="合成所有音频文件" />
+                <el-step title="生成字幕文件" />
+                <el-step title="下载视频" />
+                <el-step title="统一视频格式" />
+                <el-step title="合成最终视频" />
+            </el-steps>
         </el-tab-pane>
     </el-tabs>
 </template>
@@ -112,6 +124,8 @@ const selected_video_list_duration = computed(() => {
 const isGptSovitsApiRunning = ref(false) //是否开启sovits
 const channelUrl = ref('https://www.youtube.com/@hetongxue') //视频主页链接
 const audios = ref<HTMLAudioElement>(); // 所有音频
+const videoOrientation = ref('portrait'); // 默认竖屏
+const currentStep = ref(0);  // 当前步骤的索引
 
 
 
@@ -157,6 +171,7 @@ const get_video_list = async () => {
     const cmd = [
         '--flat-playlist',
         '--print-json',
+        '--playlist-end', '50',
         channelUrl.value
     ];
 
@@ -170,15 +185,11 @@ const get_video_list = async () => {
 }
 const test = async () => {
     try {
-        // 生成用于合成全部音频的audio.txt文件
-        let filePath = `${await resourceDir()}\\user_files\\novel_output\\audios.txt`;
+        currentStep.value = 0;
+        // 生成用于合成全部音频的audios.txt文件
+        let filePath = `${OUTPUT_PATH.value}\\audios.txt`;
         let text = novels.value.map(novel => `file /workspace/novel_output/${getFileNameFromPath(novel.audioSrc)}`).join('\n');
         await invoke('write_string_to_file', { text, filePath });
-        ElMessage({
-            message: `生成文件 ${filePath} 成功`,
-            type: 'success',
-        });
-
         // 音频合成
         let audioSynthesiscmd: string[] = [
             "-y",
@@ -195,30 +206,78 @@ const test = async () => {
         await invoke('run_ffmpeg_cmd', { cmd: audioSynthesiscmd });
         audios.value!.src = convertFileSrc(OUTPUT_PATH.value + '\\audios.wav');
         audios.value?.load();
-        ElMessage({
-            message: '已执行音频合成命令',
-            type: 'success',
-        });
+        currentStep.value = 1;
 
         // 生成字幕所需的txt文件
-        let novelsTextFilePath = `${await resourceDir()}\\user_files\\novel_output\\text.txt`;
+        let novelsTextFilePath = `${OUTPUT_PATH.value}\\text.txt`;
         let novelsText = novels.value.map(novel => novel.content).join('\n');
         await invoke('write_string_to_file', { text: novelsText, filePath: novelsTextFilePath });
-        ElMessage({
-            message: `生成文件 ${novelsTextFilePath} 成功`,
-            type: 'success',
-        });
+        currentStep.value = 3;
 
         // 字幕生成
         let audioPath = "novel_output/audios.wav";
         let textPath = "novel_output/text.txt";
-        let outputPath = "novel_output/audios_srt.srt";
+        let outputPath = "novel_output/audios.srt";
         await invoke('run_aeneas_cmd', { audioPath, textPath, outputPath });
-        ElMessage({
-            message: `生成文件 ${outputPath} 成功`,
-            type: 'success',
-        });
+        currentStep.value = 2;
+
+        // 下载已选视频
+        for (const video of selected_video_list.value) {
+            const filePath = `${OUTPUT_PATH.value}\\${video.id}.mp4`;
+            const fileExists = await invoke<boolean>('check_file_exists', { path: filePath });
+            if (fileExists) {
+                continue;
+            }
+            await video.downloadVideo('/workspace/novel_output/');
+        }
+        currentStep.value = 3;
+
+        //统一视频大小
+        const orientation = videoOrientation.value === 'landscape' ? 'landscape' : 'portrait';
+        for (const video of selected_video_list.value) {
+            const videoPath = `/workspace/novel_output/${video.id}.mp4`;
+            const outputPath = `/workspace/novel_output/${video.id}_${orientation}.mp4`;
+            const path = `${OUTPUT_PATH.value}\\${video.id}_${orientation}.mp4`
+            const fileExists = await invoke<boolean>('check_file_exists', { path: path });
+            if (fileExists) {
+                continue;
+            }
+            let cmd = [
+                "-y",
+                "-i", videoPath,
+                '-vf', orientation === 'landscape'
+                    ? 'scale=-1:1080,pad=1920:1080:(ow-iw)/2:(oh-ih)/2'
+                    : 'scale=1080:-1,pad=1080:1920:(ow-iw)/2:(oh-ih)/2',
+                '-preset', 'fast',
+                outputPath
+            ];
+            await invoke('run_ffmpeg_cmd', { cmd });
+        }
+
+        currentStep.value = 4;
+
+        // 生成用于合成全部视频的videos.txt文件
+        let videoListPath = `${OUTPUT_PATH.value}\\videos.txt`;
+        let videoPaths = selected_video_list.value.map(video => `file '/workspace/novel_output/${video.id}_${orientation}.mp4'`).join('\n');
+        await invoke('write_string_to_file', { text: videoPaths, filePath: videoListPath });
+        let cmd = [
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", "/workspace/novel_output/videos.txt",
+            "-i", "/workspace/novel_output/audios.wav",
+            "-vf", "subtitles=/workspace/novel_output/audios.srt:force_style='FontName=Noto Sans CJK SC,FontSize=25,PrimaryColour=&H00FFFF&,WrapStyle=0'",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-c:a", "aac",
+            "-shortest",
+            "/workspace/novel_output/final_video.mp4"
+        ];
+        await invoke('run_ffmpeg_cmd', { cmd });
+        currentStep.value = 5;
+
     } catch (error) {
+        currentStep.value = 0;
         ElMessage({
             message: `操作失败: ${error as string}`,
             type: 'error',
@@ -229,8 +288,7 @@ const test = async () => {
 
 // 打开音频目录
 const openAudioDir = async () => {
-    let appdir = await resourceDir()
-    let path = `${appdir}\\user_files\\novel_output`
+    let path = OUTPUT_PATH.value
     await invoke('open_path', { path })
 }
 
