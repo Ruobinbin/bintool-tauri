@@ -93,7 +93,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init()) // HTTP请求
         .invoke_handler(tauri::generate_handler![
-            tauri_cmd::input_enter,
+            // tauri_cmd::input_enter,
             tauri_cmd::is_container_running,
             tauri_cmd::start_gpt_sovits_api,
             tauri_cmd::save_novel_audio,
@@ -104,6 +104,7 @@ pub fn run() {
             tauri_cmd::run_aeneas_cmd,
             tauri_cmd::run_yt_dlp_cmd,
             tauri_cmd::check_file_exists,
+            tauri_cmd::create_dir_and_get_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
