@@ -1,9 +1,9 @@
 <template>
     <el-tabs tab-position="left">
         <el-tab-pane label="小说">
-            <el-input v-model="fqNovelApi" style="width: 300px" placeholder="番茄小说api" />
+            <el-input v-model="fqNovelApi" placeholder="番茄小说api" />
             <br />
-            <el-input v-model="fqNovelId" style="width: 500px" placeholder="输入小说链接">
+            <el-input v-model="fqNovelId" placeholder="输入小说ID">
                 <template #prepend>{{ fqNovelApi }}</template>
             </el-input>
             <el-button @click="getFqNovel" :loading="fqNovelIsLoading">获取小说</el-button>
@@ -14,7 +14,7 @@
         </el-tab-pane>
         <el-tab-pane label="生成音频">
             <el-button @click="setNovelTable">清空并且设置表格</el-button>
-            <el-button @click="openAudioDir">打开音频目录</el-button>
+            <el-button @click="open(OUTPUT_PATH)">打开音频目录</el-button>
             <el-button @click="insertNovel(-1)">插入</el-button>
             <el-button @click="test">test</el-button>
             <br />
@@ -51,37 +51,24 @@
             <el-input v-model="channelUrl" placeholder="博主主页链接"></el-input>
             <el-button @click="get_video_list">获取视频列表</el-button>
             <audio ref="audios" :src="convertFileSrc(OUTPUT_PATH + '\\audio.wav')" controls></audio>
-            <div style="margin-bottom: 100px;">
-                已选视频总时长{{ selected_video_list_duration }}
-                <div style="display: flex;flex-wrap: wrap;gap: 10px;">
-                    <div style="background: lightcoral;flex: 0 1 auto;width: 200px;border-radius: 10px;"
-                        v-for="video in selected_video_list" :key="video.id">
-                        <img v-if="video.thumbnails.length > 0" :src="video.getLargestThumbnailUrl()" :alt="video.url"
-                            @click="del_video(video)" style="width: 100%; height: auto; border-radius: 10px;" />
-                        <a :href="video.url" @click.prevent="open(video.url)">{{ video.url }}</a>
-                        <p>时长: {{ video.duration }} 秒</p>
-                        <el-button @click="video.downloadVideo('/workspace/novel_output/')">下载</el-button>
-                    </div>
-                </div>
-            </div>
+            <el-divider>博主视频</el-divider>
             <div>
                 <div style="display: flex;flex-wrap: wrap;gap: 10px;">
-                    <div style="background: lightgrey;flex: 0 1 auto;width: 200px;border-radius: 10px;"
+                    <div :style="{ background: video.selected ? 'yellow' : 'lightgrey', flex: '0 1 auto', width: '200px', borderRadius: '10px' }"
                         v-for="video in video_list" :key="video.id">
-                        <img v-if="video.thumbnails.length > 0" :src="video.getLargestThumbnailUrl()" :alt="video.url"
-                            @click="sel_video(video)" style="width: 100%; height: auto; border-radius: 10px;" />
-                        <a :href="video.url" @click.prevent="open(video.url)">{{ video.url }}</a>
+                        <img :src="video.getLargestThumbnailUrl()" :alt="video.url"
+                            @click="video.selected = !video.selected"
+                            style="width: 100%; height: auto; border-radius: 10px;" />
+                        <a style=" overflow-wrap: break-word;" :href="video.url" @click.prevent="open(video.url)">{{
+                            video.url
+                        }}</a>
+                        <p>ID: {{ video.id }} </p>
                         <p>时长: {{ video.duration }} 秒</p>
                     </div>
                 </div>
             </div>
         </el-tab-pane>
         <el-tab-pane label="最后合成">
-            <el-button @click="test">合成视频</el-button>
-            <el-select v-model="videoOrientation" placeholder="选择视频方向">
-                <el-option label="横屏 (Landscape)" value="landscape"></el-option>
-                <el-option label="竖屏 (Portrait)" value="portrait"></el-option>
-            </el-select>
             <el-steps :active="currentStep" finish-status="success">
                 <el-step title="合成所有音频文件" />
                 <el-step title="生成字幕文件" />
@@ -89,6 +76,17 @@
                 <el-step title="统一视频格式" />
                 <el-step title="合成最终视频" />
             </el-steps>
+            <el-button @click="test">合成视频</el-button>
+            <el-select v-model="videoOrientation" placeholder="选择视频方向">
+                <el-option label="横屏 (Landscape)" value="landscape"></el-option>
+                <el-option label="竖屏 (Portrait)" value="portrait"></el-option>
+            </el-select>
+            <el-slider v-model="bgmVolume" :min="0" :max="1" :step="0.01" show-stops></el-slider>
+            <el-select v-model="selectedBgm" placeholder="选择BGM">
+                <el-option v-for="bgm in bgmList" :key="bgm" :label="bgm" :value="bgm"></el-option>
+            </el-select>
+            <audio v-if="selectedBgm" :src="convertFileSrc(selectedBgm)" controls></audio>
+            <el-input v-model="BgmUrl" placeholder="下载BGM" @keyup.enter="downloadBgm(BgmUrl)"></el-input>
         </el-tab-pane>
     </el-tabs>
 </template>
@@ -104,12 +102,12 @@ import { resourceDir } from '@tauri-apps/api/path';
 
 import gpt_sovits_model from '../components/gpt_sovits_model.vue';
 import { computed, onMounted, ref } from 'vue'
-import { stripHtmlTags, getFileNameFromPath } from '../utils/defaultUtils'
+import { stripHtmlTags, getFileNameFromPath, getFileNameFromPathWithoutExtension } from '../utils/defaultUtils'
 import { formatNovelText, Novel, fetchNovels } from '../utils/novelUtils'
 import { IThumbnail, Video } from '../utils/yt_dlp_uitls'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-const OUTPUT_PATH = ref('');
+const OUTPUT_PATH = ref('');//输出路径
 const fqNovelIsLoading = ref(false) //番茄小说是否在获取
 const fqNovelId = ref('') //番茄小说id
 const fqNovelApi = ref('https://fqnovel.pages.dev/content?item_id=') //番茄小说api地址
@@ -117,21 +115,21 @@ const fqNovelContent = ref('') //番茄小说内容
 const fqNovelCount = computed(() => { return fqNovelContent.value.length }) //番茄小说字数
 const novels = ref<Novel[]>([])//小说
 const video_list = ref<Video[]>([]);//视频列表
-const selected_video_list = ref<Video[]>([]);//已选视频
-const selected_video_list_duration = computed(() => {
-    return selected_video_list.value.reduce((sum, video) => sum + video.duration, 0);
-});
 const isGptSovitsApiRunning = ref(false) //是否开启sovits
-const channelUrl = ref('https://www.youtube.com/@hetongxue') //视频主页链接
+const channelUrl = ref('https://www.youtube.com/@indianasmrworld') //视频主页链接
 const audios = ref<HTMLAudioElement>(); // 所有音频
 const videoOrientation = ref('portrait'); // 默认竖屏
 const currentStep = ref(0);  // 当前步骤的索引
-
-
-
+const bgmList = ref<string[]>([]); // BGM列表
+const selectedBgm = ref<string | null>(null); // 选择的BGM
+const BgmUrl = ref(''); // 下载BGM的链接
+const bgmVolume = ref(0.1); // 默认音量为0.1（10%）
 //载入时触发
 onMounted(async () => {
     OUTPUT_PATH.value = await resourceDir() + '\\user_files\\novel_output';
+    //载入BGM列表
+    fetchBgmList();
+    fetch_video_list();
     //创建数据库
     const db = await Database.load('sqlite:bintool.db');
     await db.execute(`
@@ -156,15 +154,46 @@ onMounted(async () => {
     });
 });
 
-const sel_video = (video: Video) => {
-    video_list.value = video_list.value.filter(v => v.id !== video.id);
-    selected_video_list.value.push(video);
+
+//下载BGM
+const downloadBgm = async (url: string) => {
+    let path = `/workspace/novel_output/bgm`;
+    const cmd = [
+        '-x',
+        '--audio-format', 'wav',
+        '--proxy', 'http://host.docker.internal:7890',
+        '-o', `${path}/%(title)s.%(ext)s`,
+        url
+    ];
+
+    await invoke('run_yt_dlp_cmd', { cmd }).then(() => {
+        fetchBgmList();
+        ElMessage({
+            message: '下载bgm成功',
+            type: 'success',
+        });
+    }).catch((error) => {
+        ElMessage({
+            message: `下载bgm失败: ${error as string}`,
+            type: 'error',
+        });
+    });
+
 }
 
-const del_video = (video: Video) => {
-    selected_video_list.value = selected_video_list.value.filter(v => v.id !== video.id);
-    video_list.value.unshift(video);
-}
+// 获取 BGM 列表
+const fetchBgmList = async () => {
+    const files = await invoke<string[]>('create_dir_and_get_files', { path: `${OUTPUT_PATH.value}\\bgm` });
+    bgmList.value = files;
+};
+
+// 获取本地视频列表
+const fetch_video_list = async () => {
+    const files = await invoke<string[]>('create_dir_and_get_files', { path: `${OUTPUT_PATH.value}\\video` });
+    video_list.value = files
+        .filter(file => !file.includes('landscape') && !file.includes('portrait'))
+        .map(file => new Video(getFileNameFromPathWithoutExtension(file), file, 0, []));
+};
 
 //获取视频列表
 const get_video_list = async () => {
@@ -177,11 +206,11 @@ const get_video_list = async () => {
 
     const log = await invoke('run_yt_dlp_cmd', { cmd });
     let logStr = log as string;
-    video_list.value = logStr.trim().split('\n').map((videoStr) => {
+    video_list.value.push(...logStr.trim().split('\n').map(videoStr => {
         let video = JSON.parse(videoStr);
-        let thumbnails: IThumbnail[] = video.thumbnails
+        let thumbnails: IThumbnail[] = video.thumbnails;
         return new Video(video.id, video.url, video.duration, thumbnails);
-    });
+    }));
 }
 const test = async () => {
     try {
@@ -210,34 +239,39 @@ const test = async () => {
 
         // 生成字幕所需的txt文件
         let novelsTextFilePath = `${OUTPUT_PATH.value}\\text.txt`;
-        let novelsText = novels.value.map(novel => novel.content).join('\n');
+        let novelsText = novels.value.map(novel => {
+            return novel.content
+                .replace(/，|。/g, '')
+                .split('')
+                .join(' ');
+        }).join('\n');
         await invoke('write_string_to_file', { text: novelsText, filePath: novelsTextFilePath });
-        currentStep.value = 3;
 
         // 字幕生成
-        let audioPath = "novel_output/audios.wav";
-        let textPath = "novel_output/text.txt";
-        let outputPath = "novel_output/audios.srt";
+        let audioPath = "/workspace/novel_output/audios.wav";
+        let textPath = "/workspace/novel_output/text.txt";
+        let outputPath = "/workspace/novel_output/audios.srt";
         await invoke('run_aeneas_cmd', { audioPath, textPath, outputPath });
         currentStep.value = 2;
 
         // 下载已选视频
-        for (const video of selected_video_list.value) {
-            const filePath = `${OUTPUT_PATH.value}\\${video.id}.mp4`;
+        const selected_videos = video_list.value.filter(video => video.selected);
+        for (const video of selected_videos) {
+            const filePath = `${OUTPUT_PATH.value}\\video\\${video.id}.mp4`;
             const fileExists = await invoke<boolean>('check_file_exists', { path: filePath });
             if (fileExists) {
                 continue;
             }
-            await video.downloadVideo('/workspace/novel_output/');
+            await video.downloadVideo('/workspace/novel_output/video');
         }
         currentStep.value = 3;
 
         //统一视频大小
         const orientation = videoOrientation.value === 'landscape' ? 'landscape' : 'portrait';
-        for (const video of selected_video_list.value) {
-            const videoPath = `/workspace/novel_output/${video.id}.mp4`;
-            const outputPath = `/workspace/novel_output/${video.id}_${orientation}.mp4`;
-            const path = `${OUTPUT_PATH.value}\\${video.id}_${orientation}.mp4`
+        for (const video of selected_videos) {
+            const videoPath = `/workspace/novel_output/video/${video.id}.mp4`;
+            const outputPath = `/workspace/novel_output/video/${video.id}_${orientation}.mp4`;
+            const path = `${OUTPUT_PATH.value}\\video\\${video.id}_${orientation}.mp4`
             const fileExists = await invoke<boolean>('check_file_exists', { path: path });
             if (fileExists) {
                 continue;
@@ -258,22 +292,45 @@ const test = async () => {
 
         // 生成用于合成全部视频的videos.txt文件
         let videoListPath = `${OUTPUT_PATH.value}\\videos.txt`;
-        let videoPaths = selected_video_list.value.map(video => `file '/workspace/novel_output/${video.id}_${orientation}.mp4'`).join('\n');
+        let videoPaths = selected_videos.map(video => `file '/workspace/novel_output/video/${video.id}_${orientation}.mp4'`).join('\n');
         await invoke('write_string_to_file', { text: videoPaths, filePath: videoListPath });
-        let cmd = [
-            "-y",
-            "-f", "concat",
-            "-safe", "0",
-            "-i", "/workspace/novel_output/videos.txt",
-            "-i", "/workspace/novel_output/audios.wav",
-            "-vf", "subtitles=/workspace/novel_output/audios.srt:force_style='FontName=Noto Sans CJK SC,FontSize=25,PrimaryColour=&H00FFFF&,WrapStyle=0'",
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-c:a", "aac",
-            "-shortest",
-            "/workspace/novel_output/final_video.mp4"
-        ];
-        await invoke('run_ffmpeg_cmd', { cmd });
+
+        if (selectedBgm.value) {
+            const bgmfile = getFileNameFromPath(selectedBgm.value);
+            let cmd = [
+                "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", "/workspace/novel_output/videos.txt",
+                "-i", "/workspace/novel_output/audios.wav",
+                "-stream_loop", "-1", "-i", `/workspace/novel_output/bgm/${bgmfile}`,
+                "-filter_complex", `[2:a]volume=${bgmVolume.value}[bgm]; [1:a][bgm]amix=inputs=2:duration=first[a]`,
+                "-vf", "subtitles=/workspace/novel_output/audios.srt:force_style='FontName=Noto Sans CJK SC,FontSize=20,PrimaryColour=&H00FFFF&,WrapStyle=0,Spacing=-4'",
+                "-map", "0:v",
+                "-map", "[a]",
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-c:a", "aac",
+                "-shortest",
+                "/workspace/novel_output/final_video.mp4"
+            ];
+            await invoke('run_ffmpeg_cmd', { cmd });
+        } else {
+            let cmd = [
+                "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", "/workspace/novel_output/videos.txt",
+                "-i", "/workspace/novel_output/audios.wav",
+                "-vf", "subtitles=/workspace/novel_output/audios.srt:force_style='FontName=Noto Sans CJK SC,FontSize=20,PrimaryColour=&H00FFFF&,WrapStyle=0,Spacing=-4'",
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-c:a", "aac",
+                "-shortest",
+                "/workspace/novel_output/final_video.mp4"
+            ];
+            await invoke('run_ffmpeg_cmd', { cmd });
+        }
         currentStep.value = 5;
 
     } catch (error) {
@@ -285,12 +342,6 @@ const test = async () => {
         return;
     }
 };
-
-// 打开音频目录
-const openAudioDir = async () => {
-    let path = OUTPUT_PATH.value
-    await invoke('open_path', { path })
-}
 
 // 生成音频
 const generateAudio = async (novelIndex: number) => {
