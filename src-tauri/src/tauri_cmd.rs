@@ -7,7 +7,7 @@ use crate::{gpt_sovits_model_dir, novel_output_dir};
 
 //测试命令
 #[command]
-pub async fn input_enter(value: &str) -> String {
+pub fn input_enter(value: &str) -> String {
     println!("input_enter: {}", value);
     value.to_string()
 }
