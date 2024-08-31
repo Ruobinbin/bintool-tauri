@@ -15,12 +15,17 @@ use tauri::Manager;
 
 use crate::{app_handle, gpt_sovits_model_dir, user_files_dir};
 
+const YT_DLP_IMAGE: &str = "jauderho/yt-dlp:latest";
+const AENEAS_IMAGE: &str = "shreshthtuli/aeneas:latest";
+const FFMPEG_IMAGE: &str = "ruobinqaq/ffmpeg:latest";
+const GPT_SOVITS_IMAGE: &str = "breakstring/gpt-sovits:latest";
+
 /// 创建并启动一个 yt-dlp 容器，执行指定的命令
 pub async fn create_and_run_yt_dlp_container(cmd: Vec<&str>) -> Result<String, Error> {
     let docker = get_docker().await?;
 
-    if !is_image_exists("jauderho/yt-dlp").await? {
-        pull_image("jauderho/yt-dlp", "gpt_sovits_api_log").await?;
+    if !is_image_exists(YT_DLP_IMAGE).await? {
+        pull_image(YT_DLP_IMAGE, "gpt_sovits_api_log").await?;
     }
 
     if let Ok(_) = get_container_by_name("yt-dlp").await {
@@ -30,7 +35,7 @@ pub async fn create_and_run_yt_dlp_container(cmd: Vec<&str>) -> Result<String, E
     let mount_path = user_files_dir().to_string_lossy().to_string() + ":/workspace";
 
     let config = Config::<&str> {
-        image: Some("jauderho/yt-dlp"),
+        image: Some(YT_DLP_IMAGE),
         cmd: Some(cmd),
         env: Some(vec![
             "HTTP_PROXY=http://host.docker.internal:7890",
@@ -68,8 +73,8 @@ pub async fn create_and_run_aeneas_container(
 ) -> Result<(), Error> {
     let docker = get_docker().await?;
 
-    if !is_image_exists("shreshthtuli/aeneas").await? {
-        pull_image("shreshthtuli/aeneas", "aeneas_log").await?;
+    if !is_image_exists(AENEAS_IMAGE).await? {
+        pull_image(AENEAS_IMAGE, "aeneas_log").await?;
     }
 
     if let Ok(_) = get_container_by_name("aeneas").await {
@@ -79,14 +84,14 @@ pub async fn create_and_run_aeneas_container(
     let mount_path = user_files_dir().to_string_lossy().to_string() + ":/workspace";
 
     let cmd = format!(
-        "cd ~/Aeneas/aeneas && python -m aeneas.tools.execute_task /workspace/{} /workspace/{} 'task_language=zho|os_task_file_format=srt|is_text_type=plain' /workspace/{}",
+        "cd ~/Aeneas/aeneas && python -m aeneas.tools.execute_task {} {} 'task_language=zho|os_task_file_format=srt|is_text_type=plain' {}",
         audio_path,
         text_path,
         output_path
     );
 
     let config = Config::<&str> {
-        image: Some("shreshthtuli/aeneas"),
+        image: Some(AENEAS_IMAGE),
         cmd: Some(vec!["/bin/bash", "-c", cmd.as_str()]),
         env: Some(vec!["PYTHONIOENCODING=UTF-8"]),
         host_config: Some(bollard::service::HostConfig {
@@ -116,8 +121,8 @@ pub async fn create_and_run_aeneas_container(
 pub async fn create_and_run_ffmpeg_container(cmd: Vec<&str>) -> Result<(), Error> {
     let docker = get_docker().await?;
 
-    if !is_image_exists("ruobinqaq/ffmpeg:latest").await? {
-        pull_image("ruobinqaq/ffmpeg:latest", "gpt_sovits_api_log").await?;
+    if !is_image_exists(FFMPEG_IMAGE).await? {
+        pull_image(FFMPEG_IMAGE, "gpt_sovits_api_log").await?;
     }
 
     if let Ok(_) = get_container_by_name("ffmpeg").await {
@@ -132,7 +137,7 @@ pub async fn create_and_run_ffmpeg_container(cmd: Vec<&str>) -> Result<(), Error
     let mount_path = user_files_dir().to_string_lossy().to_string() + ":/workspace";
 
     let config = Config::<&str> {
-        image: Some("ruobinqaq/ffmpeg:latest"),
+        image: Some(FFMPEG_IMAGE),
         cmd: Some(cmd),
         host_config: Some(bollard::service::HostConfig {
             binds: Some(vec![mount_path]),
@@ -221,8 +226,8 @@ pub async fn start_gpt_sovits_api() -> Result<(), Error> {
 pub async fn create_gpt_sovits() -> Result<(), Error> {
     let docker = get_docker().await?;
 
-    if !is_image_exists("breakstring/gpt-sovits:latest").await? {
-        pull_image("breakstring/gpt-sovits:latest", "gpt_sovits_api_log").await?;
+    if !is_image_exists(GPT_SOVITS_IMAGE).await? {
+        pull_image(GPT_SOVITS_IMAGE, "gpt_sovits_api_log").await?;
     }
 
     let options = Some(CreateContainerOptions::<&str> {
@@ -271,7 +276,7 @@ pub async fn create_gpt_sovits() -> Result<(), Error> {
         gpt_sovits_model_dir().to_string_lossy().to_string() + ":/workspace/gpt_sovits_model";
 
     let config = Config::<&str> {
-        image: Some("breakstring/gpt-sovits:latest"),
+        image: Some(GPT_SOVITS_IMAGE),
         host_config: Some(bollard::service::HostConfig {
             port_bindings: Some(port_bindings),
             binds: Some(vec![mount_path]),
