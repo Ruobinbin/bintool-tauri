@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { ElMessage } from "element-plus";
 
 interface IThumbnail {
     url: string;
@@ -12,6 +11,7 @@ interface IVideo {
     url: string;
     duration: number;
     thumbnails: IThumbnail[];
+    selected: boolean;
 }
 
 class Video implements IVideo {
@@ -19,12 +19,14 @@ class Video implements IVideo {
     public url: string;
     public duration: number;
     public thumbnails: IThumbnail[];
+    public selected: boolean;
 
     constructor(id: string, url: string, duration: number | string, thumbnails: IThumbnail[]) {
         this.id = id;
         this.url = url;
         this.duration = this.validateDuration(duration);
         this.thumbnails = thumbnails;
+        this.selected = false;
     }
 
     public validateDuration(value: number | string): number {
@@ -55,18 +57,7 @@ class Video implements IVideo {
             '-o', outputFilePath
         ];
 
-        try {
-            await invoke<string>('run_yt_dlp_cmd', { cmd });
-            ElMessage({
-                message: '视频下载成功',
-                type: 'success',
-            });
-        } catch (err) {
-            ElMessage({
-                message: `操作失败: ${err as string}`,
-                type: 'error',
-            });
-        }
+        await invoke<string>('run_yt_dlp_cmd', { cmd });
     }
 }
 
