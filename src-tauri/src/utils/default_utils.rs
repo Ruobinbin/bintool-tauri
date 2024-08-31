@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 //创建目录
-pub fn ensure_path_exists(path: &PathBuf) -> std::io::Result<()> {
+pub fn ensure_path_exists(path: &Path) -> std::io::Result<()> {
     if !path.exists() {
-        fs::create_dir_all(&path)?;
+        fs::create_dir_all(path)?;
     }
     Ok(())
 }
