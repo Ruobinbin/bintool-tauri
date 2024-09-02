@@ -74,20 +74,6 @@ onMounted(async () => {
   });
   // 获取模型列表
   models.value = await invoke<GptSovitsModel[]>('get_gpt_sovits_models');
-  // 初始化sovits状态
-  await invoke<boolean>('is_container_running', { containerName: 'gpt-sovits' })
-    .then(async (is_running) => {
-      IsGptSovitsApiLoading.value = is_running;
-      setTimeout(async () => {
-        await emit('gpt_sovits_api_running', is_running);
-      }, 1000);
-    })
-    .catch((error) => {
-      ElMessage({
-        message: error as string,
-        type: 'error',
-      })
-    });
 });
 
 const localPathToContainerPath = (localPath: string) => {

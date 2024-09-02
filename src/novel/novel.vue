@@ -61,7 +61,7 @@
                             style="width: 100%; height: auto; border-radius: 10px;" />
                         <a style=" overflow-wrap: break-word;" :href="video.url" @click.prevent="open(video.url)">{{
                             video.url
-                        }}</a>
+                            }}</a>
                         <p>ID: {{ video.id }} </p>
                         <p>时长: {{ video.duration }} 秒</p>
                     </div>
@@ -88,6 +88,9 @@
             <audio v-if="selectedBgm" :src="convertFileSrc(selectedBgm)" controls></audio>
             <el-input v-model="BgmUrl" placeholder="下载BGM" @keyup.enter="downloadBgm(BgmUrl)"></el-input>
         </el-tab-pane>
+        <el-tab-pane label="设置">
+            <show_database />
+        </el-tab-pane>
     </el-tabs>
 </template>
 <script lang="ts" setup>
@@ -101,6 +104,8 @@ import Database from '@tauri-apps/plugin-sql';
 import { resourceDir } from '@tauri-apps/api/path';
 
 import gpt_sovits_model from '../components/gpt_sovits_model.vue';
+import show_database from '../components/show_database.vue';
+
 import { computed, onMounted, ref } from 'vue'
 import { stripHtmlTags, getFileNameFromPath, getFileNameFromPathWithoutExtension } from '../utils/defaultUtils'
 import { formatNovelText, Novel, fetchNovels } from '../utils/novelUtils'
@@ -153,8 +158,6 @@ onMounted(async () => {
         isGptSovitsApiRunning.value = event.payload as boolean;
     });
 });
-
-
 //下载BGM
 const downloadBgm = async (url: string) => {
     let path = `/workspace/novel_output/bgm`;
